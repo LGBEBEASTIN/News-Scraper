@@ -1,24 +1,29 @@
 const express = require("express");
-const app = express.app();
+const app = express();
 const mongojs = require("mongojs");
 
 const axios = require("axios");
 const cheerio = require("cheerio");
 
-const Comment = require("./models/Comment");
-const Article = require("./models/Article");
+const db = require("../models");
 
-const db = mongojs(databaseUrl, collections);
-db.on("error", function(err) {
-  console.log("Database Error:", err);
+
+const databaseUrl = "NewsScraper";
+const collections = ["articles"];
+
+const mongodb = mongojs(databaseUrl, collections);
+mongodb.on("error", function (err) {
+    console.log("Database Error:", err);
 });
 
 app.get("/", function (req, res) {
-    res.json("/articles");
+    db.Article.find({ saved: false }, function (err, data) {
+        res.render('index', { index: true, article: data });
+    });
 });
 
 app.get("/scrape", function (req, res) {
-    axios.get("https://basketball.realgm.com/nba/news").then(function(response) {
+    axios.get("https://basketball.realgm.com/nba/news").then(function (response) {
 
         const $ = cheerio.load(response.data);
         const articles = [];
@@ -45,10 +50,10 @@ app.get("/scrape", function (req, res) {
             }
         });
 
-        db.scrapedData.insert(articles, function(err) {
+        mongodb.scrapedData.insert(articles, function (err) {
             if (err) return res.json({ err: err.message });
             res.send("Scrape Complete");
-          });
+        });
     });
 });
 
@@ -58,9 +63,9 @@ app.get("/articles", function (req, res) {
         .exec(function (err, doc) {
             if (err) {
                 console.log(err);
-            } 
+            }
             else {
-                res.json("index", article: doc);
+                res.json("index", article);
             }
         });
 });
@@ -87,11 +92,11 @@ app.get("/readArticle/:id", function (req, res) {
         .exec(function (err, doc) {
             if (err) {
                 console.log("Error: " + err);
-            } 
+            }
             else {
                 hbsObj.article = doc;
                 const link = doc.link;
-                axios(link).then( function (response) {
+                axios(link).then(function (response) {
                     const $ = cheerio.load(response.data);
 
                     $(".article clearfix").each(function (i, element) {
@@ -136,7 +141,7 @@ app.post("/comment/:id", function (req, res) {
     newComment.save(function (err, doc) {
         if (err) {
             console.log(err);
-        } 
+        }
         else {
             console.log(doc._id);
             console.log(articleId);
@@ -146,14 +151,14 @@ app.post("/comment/:id", function (req, res) {
                 { $push: { comment: doc._id } },
                 { new: true }
             )
-            .exec(function (err, doc) {
-                if (err) {
-                    console.log(err);
-                } 
-                else {
-                    res.redirect("/readArticle/" + articleId);
-                }
-            });
+                .exec(function (err, doc) {
+                    if (err) {
+                        console.log(err);
+                    }
+                    else {
+                        res.redirect("/readArticle/" + articleId);
+                    }
+                });
         }
     });
 });
