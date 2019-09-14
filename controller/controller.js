@@ -27,6 +27,7 @@ app.get("/scrape", function(req, res) {
         .children("a")
         .attr("href");
 
+
         db.Article.create(result)
         .then(function(result) {
         })
