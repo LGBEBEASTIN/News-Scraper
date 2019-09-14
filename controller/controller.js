@@ -1,14 +1,10 @@
 const express = require("express");
 const app = express();
-const mongojs = require("mongojs");
 
 const axios = require("axios");
 const cheerio = require("cheerio");
 
 const db = require("../models");
-
-"https://basketball.realgm.com/nba/news"
-".article clearfix"
 
 app.get("/", function(req, res) {
   res.redirect("/articles");
@@ -24,38 +20,19 @@ app.get("/scrape", function(req, res) {
     $("div.article.clearfix").each(function(i, element) {
      const result = {};
 
-      title = $(element)
+      result.title = $(this)
         .children("a")
         .text();
-      link = $(element)
+      result.link = $(this)
         .children("a")
         .attr("href");
 
-      if (title !== "" && link !== "") {
-        if (articleArray.indexOf(title) == 1) {
-          articleArray.push(title);
-
-          Article.count({ title: title }, function(err, test) {
-            if (test === 0) {
-             const entry = new Article(result);
-
-              entry.save(function(err, doc) {
-                if (err) {
-                  console.log(err);
-                } else {
-                  console.log(doc);
-                }
-              });
-            }
-          });
-        } 
-        else {
-          console.log("Article already exists.");
-        }
-      } 
-      else {
-        console.log("Not saved to DB, missing data");
-      }
+        db.Article.create(result)
+        .then(function(result) {
+        })
+        .catch(function(err) {
+          return res.json(err);
+        });
     });
     res.redirect("/articles");
   });
@@ -113,14 +90,17 @@ app.get("/readArticle/:id", function(req, res) {
       } 
       else {
         hbsObj.article = doc;
-       const link = doc.link;
-        axios(link).then(function(response) {
-         const $ = cheerio.load(response);
+        const link = doc.link;
+        
+        console.log("https://basketball.realgm.com"+link);
+        axios.get("https://basketball.realgm.com"+link)
+        .then(function(response) {
+         const $ = cheerio.load(response.data);
 
           $("div.article.clearfix").each(function(i, element) {
             hbsObj.body = $(this)
-              .children(".article-title")
-              .children("p")
+              .children("div.article-title")
+              .children("div.article-body")
               .text();
 
             res.render("article", hbsObj);
@@ -141,16 +121,17 @@ app.post("/comment/:id", function(req, res) {
     body: content
   };
 
- const newComment = new Comment(commentObj);
+ let Comment = new db.Comment(commentObj);
 
-  newComment.save(function(err, doc) {
+  Comment.save(function(err, doc) {
     if (err) {
       console.log(err);
-    } else {
+    } 
+    else {
       console.log(doc._id);
       console.log(articleId);
 
-      Article.findOneAndUpdate(
+      db.Article.findOneAndUpdate(
         { _id: req.params.id },
         { $push: { comment: doc._id } },
         { new: true }
